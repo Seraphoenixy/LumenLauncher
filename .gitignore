@@ -1,0 +1,38 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+[Tt]est[Rr]esult*/
+[Aa]rtifacts/
+
+# .NET tooling
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.suo
+*.rsuser
+*.sln.docstates
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+# JetBrains Rider
+_ReSharper*/
+*.DotSettings.user
+.idea/
+
+# Local application data and generated SQLite databases
+settings.local.json
+*.db
+*.db-shm
+*.db-wal
+Cache/
+
+# OS files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.tmp
