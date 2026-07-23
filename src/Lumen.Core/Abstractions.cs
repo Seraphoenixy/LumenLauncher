@@ -26,7 +26,7 @@ public sealed record HotkeyGesture(IReadOnlyList<string> Modifiers, string Key);
 public sealed record ShortcutTarget(string TargetPath, string? Arguments, string WorkingDirectory, string? IconPath);
 public sealed class LumenSettings
 {
-    public HotkeyGesture Hotkey { get; set; } = new(["Alt"], "Space");
+    public HotkeyGesture Hotkey { get; set; } = new(["Alt"], "W");
     public List<string> PortableApplicationDirectories { get; set; } = [];
     public int PortableScanMaxDepth { get; set; } = 4;
     public int MinimumExecutableCandidateScore { get; set; } = 20;

@@ -12,11 +12,12 @@ public partial class MainWindow : Window, ILauncherWindowService
  {
   _settings=settings;InitializeComponent();RestorePosition();DataContext=vm;
   TextCompositionManager.AddTextInputStartHandler(SearchBox,(_,_)=>vm.IsComposing=true);TextCompositionManager.AddTextInputHandler(SearchBox,(_,_)=>vm.IsComposing=false);
-  SearchBox.LostKeyboardFocus+=(_,_)=>vm.IsComposing=false;Loaded+=(_,_)=>SearchBox.Focus();Deactivated+=OnDeactivated;PreviewKeyDown+=OnKeyDown;Closing+=OnClosing;
+  SearchBox.LostKeyboardFocus+=(_,_)=>vm.IsComposing=false;Loaded+=(_,_)=>FocusSearchBox();Activated+=(_,_)=>FocusSearchBox();Deactivated+=OnDeactivated;PreviewKeyDown+=OnKeyDown;Closing+=OnClosing;
  }
- public void ShowLauncher(){if(!IsVisible)Show();if(WindowState==WindowState.Minimized)WindowState=WindowState.Normal;Activate();Topmost=true;Topmost=false;Focus();Dispatcher.BeginInvoke(SearchBox.Focus);}
+ public void ShowLauncher(){if(!IsVisible)Show();if(WindowState==WindowState.Minimized)WindowState=WindowState.Normal;Activate();Topmost=true;Topmost=false;FocusSearchBox();}
  public void HideLauncher(){if(DataContext is MainWindowViewModel vm){vm.Query=string.Empty;vm.ClearTransientResults();vm.IsComposing=false;}Hide();}
  public void ToggleLauncher(){if(IsVisible)HideLauncher();else ShowLauncher();}
+ private void FocusSearchBox(){Focus();SearchBox.Focus();Keyboard.Focus(SearchBox);}
  public void CloseForShutdown(){_exitRequested=true;Close();}
  private void OnDeactivated(object? sender,EventArgs e){if(_settings.Current.Window.HideOnDeactivated)HideLauncher();}
  private void OnClosing(object? sender,System.ComponentModel.CancelEventArgs e){if(_exitRequested)return;e.Cancel=true;HideLauncher();}
