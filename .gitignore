@@ -6,6 +6,8 @@
 [Tt]est[Rr]esult*/
 [Aa]rtifacts/
 
+publish/
+
 # .NET tooling
 .vs/
 .vscode/
