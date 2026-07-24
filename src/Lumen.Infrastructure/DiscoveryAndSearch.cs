@@ -117,6 +117,58 @@ public sealed class PortableApplicationScanner(ISettingsService settings,IExecut
 }
 public sealed class ApplicationSearchProvider(IApplicationStore store) : ISearchProvider { public string ProviderId=>"applications"; public async Task<IReadOnlyList<SearchResult>> SearchAsync(SearchQuery q,CancellationToken ct){if(q.IsEmpty)return await store.GetRecentAsync(q.Limit,ct);var a=await store.SearchApplicationsAsync(q.Text,null,q.Limit,ct);return a.Select(x=>ToResult(x,q)).ToList();} internal static SearchResult ToResult(ApplicationEntry x,SearchQuery q){var type=x.Source=="portable"?SearchResultType.PortableApplication:SearchResultType.Application;var action=x.Source=="msix"?new SearchAction("appsfolder",x.ExecutablePath):new SearchAction("process",x.ExecutablePath,x.Arguments,x.WorkingDirectory);return new(x.Id,type,x.DisplayName,x.ExecutablePath,x.IconKey,Math.Max(TextMatcher.Score(x.DisplayName,q.Text),TextMatcher.Score(x.SearchText,q.Text))+x.CandidateScore,action);} }
 public sealed class PortableApplicationSearchProvider(IApplicationStore store) : ISearchProvider { public string ProviderId=>"portable";public async Task<IReadOnlyList<SearchResult>> SearchAsync(SearchQuery q,CancellationToken ct){if(q.IsEmpty)return [];var a=await store.SearchApplicationsAsync(q.Text,"portable",q.Limit,ct);return a.Select(x=>ApplicationSearchProvider.ToResult(x,q) with { Type=SearchResultType.PortableApplication}).ToList();}}
+public sealed class FolderScanner(ISettingsService settings, ILogger<FolderScanner> logger) : IFolderScanner
+{
+    private static readonly HashSet<string> ExcludedNames = new(StringComparer.OrdinalIgnoreCase) { ".git", ".svn", "node_modules", "bin", "obj", "$RECYCLE.BIN", "System Volume Information" };
+    public Task<IReadOnlyList<FolderEntry>> ScanAsync(CancellationToken ct) => Task.Run(() =>
+    {
+        var entries = new Dictionary<string, FolderEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var configuredRoot in settings.Current.FolderIndexDirectories.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!Directory.Exists(configuredRoot)) { logger.LogWarning("Folder index root does not exist: {Directory}", configuredRoot); continue; }
+            var root = Path.GetFullPath(configuredRoot);
+            Add(root, root, 0);
+            var stack = new Stack<(string Path, int Depth)>(); stack.Push((root, 0));
+            while (stack.Count > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                var (directory, depth) = stack.Pop();
+                if (depth >= Math.Max(0, settings.Current.FolderIndexMaxDepth)) continue;
+                IEnumerable<string> children;
+                try { children = Directory.EnumerateDirectories(directory); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
+                foreach (var child in children)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var info = new DirectoryInfo(child);
+                        if (ExcludedNames.Contains(info.Name) || (info.Attributes & (FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint)) != 0) continue;
+                        var full = Path.GetFullPath(child); Add(full, root, depth + 1); stack.Push((full, depth + 1));
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { logger.LogDebug(ex, "Skipped folder {Path}", child); }
+                }
+            }
+        }
+        return (IReadOnlyList<FolderEntry>)entries.Values.ToList();
+
+        void Add(string path, string root, int depth)
+        {
+            var id = $"folder:{path.ToLowerInvariant()}";
+            entries.TryAdd(id, new FolderEntry(id, new DirectoryInfo(path).Name is { Length: > 0 } name ? name : path, path, root, depth));
+        }
+    }, ct);
+}
+public sealed class FolderSearchProvider(IApplicationStore store) : ISearchProvider
+{
+    public string ProviderId => "folders";
+    public async Task<IReadOnlyList<SearchResult>> SearchAsync(SearchQuery query, CancellationToken ct)
+    {
+        if (query.IsEmpty) return [];
+        var folders = await store.SearchFoldersAsync(query.Text, query.Limit, ct);
+        return folders.Select(folder => new SearchResult(folder.Id, SearchResultType.Folder, folder.Name, folder.Path, "shell:Folder", Math.Max(TextMatcher.Score(folder.Name, query.Text), TextMatcher.Score(folder.Path, query.Text)) + 40 - folder.Depth, new SearchAction("folder", folder.Path))).ToList();
+    }
+}
 public sealed class QuicklinkSearchProvider(ISettingsService settings) : ISearchProvider
 {
     public string ProviderId => "quicklinks";

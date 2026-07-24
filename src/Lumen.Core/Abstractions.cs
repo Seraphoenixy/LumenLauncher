@@ -11,6 +11,8 @@ public interface IApplicationStore
     Task InitializeAsync(CancellationToken cancellationToken = default);
     Task UpsertApplicationsAsync(IEnumerable<ApplicationEntry> entries, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ApplicationEntry>> SearchApplicationsAsync(string query, string? source, int limit, CancellationToken cancellationToken = default);
+    Task ReplaceFoldersAsync(IEnumerable<FolderEntry> entries, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<FolderEntry>> SearchFoldersAsync(string query, int limit, CancellationToken cancellationToken = default);
     Task RecordUsageAsync(SearchResult result, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SearchResult>> GetRecentAsync(int limit, CancellationToken cancellationToken = default);
 }
@@ -18,6 +20,7 @@ public interface IApplicationDiscoveryService { Task<IReadOnlyList<ApplicationEn
 public interface IMsixApplicationDiscoveryService { Task<IReadOnlyList<ApplicationEntry>> DiscoverAsync(CancellationToken cancellationToken); }
 public interface IShortcutResolver { bool TryResolve(string shortcutPath, out ShortcutTarget target); }
 public interface IPortableScanner { Task<IReadOnlyList<ApplicationEntry>> ScanAsync(CancellationToken cancellationToken); }
+public interface IFolderScanner { Task<IReadOnlyList<FolderEntry>> ScanAsync(CancellationToken cancellationToken); }
 public interface IResultExecutor { Task ExecuteAsync(SearchResult result, CancellationToken cancellationToken = default); }
 public interface ISettingsService { LumenSettings Current { get; } Task LoadAsync(CancellationToken cancellationToken = default); Task SaveAsync(CancellationToken cancellationToken = default); }
 public interface IGlobalHotkeyService : IDisposable { event EventHandler? HotkeyPressed; bool Register(HotkeyGesture gesture); void Unregister(); }
@@ -30,6 +33,8 @@ public sealed class LumenSettings
     public List<string> PortableApplicationDirectories { get; set; } = [];
     public int PortableScanMaxDepth { get; set; } = 4;
     public int MinimumExecutableCandidateScore { get; set; } = 20;
+    public List<string> FolderIndexDirectories { get; set; } = [];
+    public int FolderIndexMaxDepth { get; set; } = 3;
     public List<Quicklink> Quicklinks { get; set; } = [];
     public WindowSettings Window { get; set; } = new();
 }

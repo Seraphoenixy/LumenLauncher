@@ -7,8 +7,8 @@ public sealed record SearchResultViewModel(SearchResult Result, System.Windows.M
 {
  public string Title=>Result.Title;
  public string? Subtitle=>Result.Subtitle;
- public string TypeLabel=>Result.Type switch { SearchResultType.Application=>"应用",SearchResultType.PortableApplication=>"便携应用",SearchResultType.Quicklink=>"Quicklink",SearchResultType.Command=>"命令",_=>"结果"};
- public string IconGlyph=>Result.Type switch { SearchResultType.Application=>"◫",SearchResultType.PortableApplication=>"◈",SearchResultType.Quicklink=>"↗",SearchResultType.Command=>"›",_=>"·"};
+ public string TypeLabel=>Result.Type switch { SearchResultType.Application=>"应用",SearchResultType.PortableApplication=>"便携应用",SearchResultType.Folder=>"文件夹",SearchResultType.Quicklink=>"Quicklink",SearchResultType.Command=>"命令",_=>"结果"};
+ public string IconGlyph=>Result.Type switch { SearchResultType.Application=>"◫",SearchResultType.PortableApplication=>"◈",SearchResultType.Folder=>"▣",SearchResultType.Quicklink=>"↗",SearchResultType.Command=>"›",_=>"·"};
 }
 public partial class MainWindowViewModel : ObservableObject
 {

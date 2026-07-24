@@ -65,15 +65,11 @@ jobs:
           --no-restore
           -o publish/${{ matrix.rid }}
 
-      - name: Create ZIP archive
-        shell: pwsh
-        run: Compress-Archive -Path "publish/${{ matrix.rid }}/*" -DestinationPath "Lumen-${{ matrix.rid }}.zip"
-
       - name: Upload package artifact
         uses: actions/upload-artifact@v6
         with:
           name: Lumen-${{ matrix.rid }}
-          path: Lumen-${{ matrix.rid }}.zip
+          path: publish/${{ matrix.rid }}
           if-no-files-found: error
 
   release:
@@ -95,7 +91,13 @@ jobs:
         with:
           pattern: Lumen-*
           path: release-assets
-          merge-multiple: true
+
+      - name: Create release archives
+        run: |
+          for package in release-assets/Lumen-*; do
+            name="$(basename "$package")"
+            (cd "$package" && zip -r "../../release-assets/${name}.zip" .)
+          done
 
       - name: Create release and upload packages
         env:

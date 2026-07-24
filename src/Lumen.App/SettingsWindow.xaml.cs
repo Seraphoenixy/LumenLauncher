@@ -8,13 +8,15 @@ public partial class SettingsWindow : Window
 {
     private readonly ISettingsService _settings;
     private readonly IGlobalHotkeyService _hotkey;
+    private readonly IndexRefreshService _index;
 
-    public SettingsWindow(ISettingsService settings, IGlobalHotkeyService hotkey)
+    public SettingsWindow(ISettingsService settings, IGlobalHotkeyService hotkey, IndexRefreshService index)
     {
-        _settings = settings; _hotkey = hotkey; InitializeComponent();
+        _settings = settings; _hotkey = hotkey; _index = index; InitializeComponent();
         HotkeyModifiers.Text = string.Join('+', settings.Current.Hotkey.Modifiers);
         HotkeyKey.Text = settings.Current.Hotkey.Key;
         PortableDirectories.Text = string.Join(Environment.NewLine, settings.Current.PortableApplicationDirectories);
+        FolderIndexDirectories.Text = string.Join(Environment.NewLine, settings.Current.FolderIndexDirectories);
         Quicklinks.Text = string.Join(Environment.NewLine, settings.Current.Quicklinks.Select(link => string.IsNullOrWhiteSpace(link.Alias) ? $"{link.Name} | {link.Url}" : $"{link.Name} | {link.Url} | {link.Alias}"));
         HideOnDeactivated.IsChecked = settings.Current.Window.HideOnDeactivated;
     }
@@ -32,6 +34,9 @@ public partial class SettingsWindow : Window
         }
         _settings.Current.Hotkey = candidate;
         _settings.Current.PortableApplicationDirectories = PortableDirectories.Text.Split(["\r\n", "\n"], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var folderDirectories = FolderIndexDirectories.Text.Split(["\r\n", "\n"], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var foldersChanged = !_settings.Current.FolderIndexDirectories.SequenceEqual(folderDirectories, StringComparer.OrdinalIgnoreCase);
+        _settings.Current.FolderIndexDirectories = folderDirectories;
         var quicklinks = new List<Quicklink>();
         var invalidLines = new List<int>();
         var lines = Quicklinks.Text.Split(["\r\n", "\n"], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
@@ -53,6 +58,7 @@ public partial class SettingsWindow : Window
         _settings.Current.Quicklinks = quicklinks;
         _settings.Current.Window.HideOnDeactivated = HideOnDeactivated.IsChecked == true;
         await _settings.SaveAsync();
+        if (foldersChanged) _ = _index.RebuildFolderIndexAsync();
         DialogResult = true;
     }
 }

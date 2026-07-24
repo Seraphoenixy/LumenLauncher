@@ -26,6 +26,10 @@ dotnet run --project src/Lumen.App
 
 Chrome History 从本地 Chrome Profile 的 `History` SQLite 数据库复制后导入本地数据库；不会上传网络、不采集遥测。可将 `chromeHistory.enabled` 改为 `false` 关闭它。
 
+## 文件夹搜索
+
+在“设置”的“文件夹索引目录”中，每行加入一个根目录，例如 `D:\Projects`。Lumen 仅索引文件夹，最多递归三层；保存后会在后台重建索引。搜索结果按 Enter 会在资源管理器中打开对应文件夹。为减少噪音，`.git`、`node_modules`、`bin`、`obj` 和隐藏、系统或链接目录会被跳过。
+
 ## 开机自启动
 
 在 Lumen 托盘菜单勾选“开机自启动”。Lumen 会创建名为 `Lumen` 的计划任务，在当前用户登录时以普通权限在交互会话启动；若设备策略禁止创建计划任务，会自动改用当前用户的 Windows `Run` 注册表项。
