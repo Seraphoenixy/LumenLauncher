@@ -26,6 +26,11 @@ dotnet run --project src/Lumen.App
 
 Chrome History 从本地 Chrome Profile 的 `History` SQLite 数据库复制后导入本地数据库；不会上传网络、不采集遥测。可将 `chromeHistory.enabled` 改为 `false` 关闭它。
 
+## 开机自启动
+
+在 Lumen 托盘菜单勾选“开机自启动”。Lumen 会创建名为 `Lumen` 的计划任务，在当前用户登录时以普通权限在交互会话启动；若设备策略禁止创建计划任务，会自动改用当前用户的 Windows `Run` 注册表项。
+
+
 ## 当前限制与路线
 
 该 MVP 已有后台扫描、取消、SQLite 事务、搜索并发聚合、Chrome 多 Profile 导入、应用启动和 WPF 搜索界面。下一步应补齐 Win32 `RegisterHotKey`/托盘、`.lnk` 目标解析、PATH 与 MSIX 发现、异步图标缓存、索引重建命令，以及 Windows 实机上的 DPI/失焦/快捷键冲突验证。

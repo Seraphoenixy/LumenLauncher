@@ -117,4 +117,65 @@ public sealed class PortableApplicationScanner(ISettingsService settings,IExecut
 }
 public sealed class ApplicationSearchProvider(IApplicationStore store) : ISearchProvider { public string ProviderId=>"applications"; public async Task<IReadOnlyList<SearchResult>> SearchAsync(SearchQuery q,CancellationToken ct){if(q.IsEmpty)return await store.GetRecentAsync(q.Limit,ct);var a=await store.SearchApplicationsAsync(q.Text,null,q.Limit,ct);return a.Select(x=>ToResult(x,q)).ToList();} internal static SearchResult ToResult(ApplicationEntry x,SearchQuery q){var type=x.Source=="portable"?SearchResultType.PortableApplication:SearchResultType.Application;var action=x.Source=="msix"?new SearchAction("appsfolder",x.ExecutablePath):new SearchAction("process",x.ExecutablePath,x.Arguments,x.WorkingDirectory);return new(x.Id,type,x.DisplayName,x.ExecutablePath,x.IconKey,Math.Max(TextMatcher.Score(x.DisplayName,q.Text),TextMatcher.Score(x.SearchText,q.Text))+x.CandidateScore,action);} }
 public sealed class PortableApplicationSearchProvider(IApplicationStore store) : ISearchProvider { public string ProviderId=>"portable";public async Task<IReadOnlyList<SearchResult>> SearchAsync(SearchQuery q,CancellationToken ct){if(q.IsEmpty)return [];var a=await store.SearchApplicationsAsync(q.Text,"portable",q.Limit,ct);return a.Select(x=>ApplicationSearchProvider.ToResult(x,q) with { Type=SearchResultType.PortableApplication}).ToList();}}
+public sealed class QuicklinkSearchProvider(ISettingsService settings) : ISearchProvider
+{
+    public string ProviderId => "quicklinks";
+
+    public Task<IReadOnlyList<SearchResult>> SearchAsync(SearchQuery query, CancellationToken ct)
+    {
+        if (query.IsEmpty) return Task.FromResult<IReadOnlyList<SearchResult>>([]);
+        var results = settings.Current.Quicklinks
+            .Where(link => TryNormalize(link, out _))
+            .Select(link => CreateResult(link, query))
+            .Where(result => result is not null)
+            .Cast<SearchResult>()
+            .ToList();
+        return Task.FromResult<IReadOnlyList<SearchResult>>(results);
+    }
+
+    private static SearchResult? CreateResult(Quicklink link, SearchQuery query)
+    {
+        TryNormalize(link, out var url);
+        if (url.Contains("{query}", StringComparison.Ordinal))
+        {
+            if (!TryExtractSearchText(link, query.Text, out var searchText, out var dynamicScore)) return null;
+            var target = ExpandTemplate(url, searchText);
+            return new SearchResult($"quicklink:{url.ToLowerInvariant()}", SearchResultType.Quicklink, $"{link.Name.Trim()}: {searchText}", target, null, dynamicScore + 60, new SearchAction("url", target));
+        }
+        var score = Math.Max(TextMatcher.Score(link.Name, query.Text), Math.Max(TextMatcher.Score(link.Alias ?? string.Empty, query.Text), TextMatcher.Score(url, query.Text))) + 60;
+        return score > 60 ? new SearchResult($"quicklink:{url.ToLowerInvariant()}", SearchResultType.Quicklink, link.Name.Trim(), url, null, score, new SearchAction("url", url)) : null;
+    }
+
+    private static bool TryExtractSearchText(Quicklink link, string input, out string searchText, out double score)
+    {
+        searchText = string.Empty;
+        score = 0;
+        foreach (var trigger in new[] { link.Alias, link.Name }.Where(value => !string.IsNullOrWhiteSpace(value)).OrderByDescending(value => value!.Length))
+        {
+            var value = trigger!.Trim();
+            if (!input.StartsWith(value, StringComparison.OrdinalIgnoreCase) || input.Length <= value.Length || !char.IsWhiteSpace(input[value.Length])) continue;
+            searchText = input[value.Length..].Trim();
+            if (searchText.Length == 0) continue;
+            score = 100 + (string.Equals(value, link.Alias, StringComparison.OrdinalIgnoreCase) ? 25 : 0);
+            return true;
+        }
+        return false;
+    }
+
+    public static string ExpandTemplate(string url, string query) => url.Replace("{query}", Uri.EscapeDataString(query.Trim()), StringComparison.Ordinal);
+
+    public static bool TryNormalize(Quicklink? link, out string url)
+    {
+        url = string.Empty;
+        if (link is null || string.IsNullOrWhiteSpace(link.Name) || string.IsNullOrWhiteSpace(link.Url)) return false;
+        var value = link.Url.Trim();
+        if (Uri.TryCreate(value, UriKind.Absolute, out var suppliedUri) && suppliedUri.Scheme is not ("http" or "https")) return false;
+        if (!value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !value.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) value = "https://" + value;
+        var validationValue = value.Replace("{query}", "lumen", StringComparison.Ordinal);
+        if (!Uri.TryCreate(validationValue, UriKind.Absolute, out var uri)) return false;
+        if (uri.Scheme is not ("http" or "https")) return false;
+        url = value.Contains("{query}", StringComparison.Ordinal) ? value : uri.AbsoluteUri;
+        return true;
+    }
+}
 public sealed class BuiltInCommandSearchProvider : ISearchProvider { public string ProviderId=>"commands"; public Task<IReadOnlyList<SearchResult>> SearchAsync(SearchQuery q,CancellationToken ct){var cmds=new[]{new SearchResult("command:rebuild",SearchResultType.Command,"Rebuild index","Scan applications and import Chrome history",null,TextMatcher.Score("Rebuild index",q.Text),new("command","rebuild")),new SearchResult("command:exit",SearchResultType.Command,"Exit Lumen",null,null,TextMatcher.Score("Exit Lumen",q.Text),new("command","exit"))};return Task.FromResult<IReadOnlyList<SearchResult>>(cmds.Where(x=>x.Score>0).ToList());}}

@@ -9,11 +9,11 @@ public sealed class IndexRefreshService(IApplicationDiscoveryService discovery, 
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public Task RebuildAsync(CancellationToken cancellationToken = default) => RebuildAsync(includePortable: true, cancellationToken);
-    public Task RebuildApplicationsAsync(CancellationToken cancellationToken = default) => RebuildAsync(includePortable: true, cancellationToken);
-    public Task RebuildStartupApplicationsAsync(CancellationToken cancellationToken = default) => RebuildAsync(includePortable: false, cancellationToken);
+    public Task RebuildAsync(CancellationToken cancellationToken = default) => RebuildAsync(includePortable: true, startPinyinIndexer: true, cancellationToken);
+    public Task RebuildStartupApplicationsAsync(CancellationToken cancellationToken = default) => RebuildAsync(includePortable: false, startPinyinIndexer: false, cancellationToken);
+    public Task RebuildPortableApplicationsAsync(CancellationToken cancellationToken = default) => RebuildPortableAsync(cancellationToken);
 
-    private async Task RebuildAsync(bool includePortable, CancellationToken cancellationToken)
+    private async Task RebuildAsync(bool includePortable, bool startPinyinIndexer, CancellationToken cancellationToken)
     {
         if (!await _gate.WaitAsync(0, cancellationToken)) return;
         try
@@ -22,11 +22,26 @@ public sealed class IndexRefreshService(IApplicationDiscoveryService discovery, 
             var msix = await DiscoverSafely("MSIX", msixDiscovery.DiscoverAsync, cancellationToken);
             var portable = includePortable ? await DiscoverSafely("PATH/portable", portableScanner.ScanAsync, cancellationToken) : [];
             await store.UpsertApplicationsAsync(discovered.Concat(msix).Concat(portable), cancellationToken);
-            StartPinyinIndexer();
+            if (startPinyinIndexer) StartPinyinIndexer();
             logger.LogInformation("Index rebuilt: {Applications} applications", discovered.Count + msix.Count + portable.Count);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { logger.LogError(ex, "Index rebuild failed"); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task RebuildPortableAsync(CancellationToken cancellationToken)
+    {
+        if (!await _gate.WaitAsync(0, cancellationToken)) return;
+        try
+        {
+            var portable = await DiscoverSafely("PATH/portable", portableScanner.ScanAsync, cancellationToken);
+            await store.UpsertApplicationsAsync(portable, cancellationToken);
+            StartPinyinIndexer();
+            logger.LogInformation("Portable application index rebuilt: {Applications} applications", portable.Count);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { logger.LogError(ex, "Portable application index rebuild failed"); }
         finally { _gate.Release(); }
     }
 

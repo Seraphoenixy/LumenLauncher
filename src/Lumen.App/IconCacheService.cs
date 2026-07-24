@@ -10,23 +10,15 @@ namespace Lumen.App;
 
 public sealed class IconCacheService
 {
-    private readonly Dictionary<string, ImageSource> _memory = new(StringComparer.OrdinalIgnoreCase);
-
-    public void Reset() => _memory.Clear();
-
     public ImageSource? GetIcon(string? iconKey)
     {
         if (string.IsNullOrWhiteSpace(iconKey)) return null;
         var icon = Parse(iconKey);
         var source = icon.Path;
         if (!icon.IsShellItem && !File.Exists(source)) return null;
-        var key = BuildKey(icon);
-        if (_memory.TryGetValue(key, out var cached)) return cached;
         try
         {
-            var image = icon.IsShellItem ? ExtractShellItem(source) : Extract(source, icon.Index);
-            if (image is not null) _memory[key] = image;
-            return image;
+            return icon.IsShellItem ? ExtractShellItem(source) : Extract(source, icon.Index);
         }
         catch (Exception) { return null; }
     }
@@ -39,11 +31,6 @@ public sealed class IconCacheService
         var separator = value.LastIndexOf(',');
         if (separator >= 0 && int.TryParse(value[(separator + 1)..].Trim(), out var parsed)) { index = parsed; value = value[..separator]; }
         return new(value.Trim().Trim('"'), index, false);
-    }
-
-    private static string BuildKey(IconSource icon)
-    {
-        return $"{icon.Path.ToLowerInvariant()}|{icon.Index}";
     }
 
     private static ImageSource? Extract(string source, int index)

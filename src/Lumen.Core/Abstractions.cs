@@ -30,6 +30,7 @@ public sealed class LumenSettings
     public List<string> PortableApplicationDirectories { get; set; } = [];
     public int PortableScanMaxDepth { get; set; } = 4;
     public int MinimumExecutableCandidateScore { get; set; } = 20;
+    public List<Quicklink> Quicklinks { get; set; } = [];
     public WindowSettings Window { get; set; } = new();
 }
 public sealed class WindowSettings { public double Width { get; set; } = 720; public int MaxVisibleResults { get; set; } = 12; public bool HideOnDeactivated { get; set; } = true; public double? Left { get; set; } public double? Top { get; set; } }
