@@ -10,4 +10,8 @@
   <ItemGroup><IndexerFiles Include="$(MSBuildProjectDirectory)\..\Lumen.Indexer\bin\$(Configuration)\net10.0-windows\$(RuntimeIdentifier)\Lumen.Indexer.*;$(MSBuildProjectDirectory)\..\Lumen.Indexer\bin\$(Configuration)\net10.0-windows\$(RuntimeIdentifier)\ToolGood.Words.Pinyin.dll" /></ItemGroup>
   <Copy SourceFiles="@(IndexerFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
  </Target>
+ <Target Name="CopyIndexerToPublishDirectory" AfterTargets="Publish">
+  <ItemGroup><IndexerPublishFiles Include="$(MSBuildProjectDirectory)\..\Lumen.Indexer\bin\$(Configuration)\net10.0-windows\$(RuntimeIdentifier)\Lumen.Indexer.*;$(MSBuildProjectDirectory)\..\Lumen.Indexer\bin\$(Configuration)\net10.0-windows\$(RuntimeIdentifier)\ToolGood.Words.Pinyin.dll" /></ItemGroup>
+  <Copy SourceFiles="@(IndexerPublishFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+ </Target>
 </Project>

@@ -14,7 +14,7 @@ public partial class MainWindow : Window, ILauncherWindowService
   TextCompositionManager.AddTextInputStartHandler(SearchBox,(_,_)=>vm.IsComposing=true);TextCompositionManager.AddTextInputHandler(SearchBox,(_,_)=>vm.IsComposing=false);
   SearchBox.LostKeyboardFocus+=(_,_)=>vm.IsComposing=false;Loaded+=(_,_)=>FocusSearchBox();Activated+=(_,_)=>FocusSearchBox();Deactivated+=OnDeactivated;PreviewKeyDown+=OnKeyDown;Closing+=OnClosing;
  }
- public void ShowLauncher(){if(!IsVisible)Show();if(WindowState==WindowState.Minimized)WindowState=WindowState.Normal;Activate();Topmost=true;Topmost=false;FocusSearchBox();Dispatcher.BeginInvoke(FocusSearchBox,System.Windows.Threading.DispatcherPriority.Input);}
+ public void ShowLauncher(){if(!IsVisible)Show();if(WindowState==WindowState.Minimized)WindowState=WindowState.Normal;Activate();Topmost=true;FocusSearchBox();Dispatcher.BeginInvoke(FocusSearchBox,System.Windows.Threading.DispatcherPriority.Input);}
  public void HideLauncher(){if(DataContext is MainWindowViewModel vm){vm.Query=string.Empty;vm.ClearTransientResults();vm.IsComposing=false;}Hide();}
  public void ToggleLauncher(){if(IsVisible)HideLauncher();else ShowLauncher();}
  private void FocusSearchBox(){Focus();SearchBox.Focus();Keyboard.Focus(SearchBox);}
