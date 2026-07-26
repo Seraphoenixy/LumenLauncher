@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
- <PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ApplicationIcon>Assets\Lumen.ico</ApplicationIcon><ApplicationManifest>app.manifest</ApplicationManifest><Version>0.1.0</Version></PropertyGroup>
+ <PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ApplicationIcon>Assets\Lumen.ico</ApplicationIcon><ApplicationManifest>app.manifest</ApplicationManifest><Version>0.1.1</Version></PropertyGroup>
  <ItemGroup><ProjectReference Include="../Lumen.Core/Lumen.Core.csproj" /><ProjectReference Include="../Lumen.Infrastructure/Lumen.Infrastructure.csproj" /><ProjectReference Include="../Lumen.Indexer/Lumen.Indexer.csproj" ReferenceOutputAssembly="false" /></ItemGroup>
  <ItemGroup>
   <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
