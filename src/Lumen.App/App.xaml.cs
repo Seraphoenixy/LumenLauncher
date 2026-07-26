@@ -20,14 +20,13 @@ public partial class App : System.Windows.Application
   services.AddSingleton<SearchAggregator>(); services.AddSingleton<IconCacheService>(); services.AddSingleton<MainWindowViewModel>(); services.AddSingleton<MainWindow>();
   services.AddSingleton<ILauncherWindowService>(provider => provider.GetRequiredService<MainWindow>()); services.AddSingleton<IGlobalHotkeyService, WpfGlobalHotkeyService>(); services.AddSingleton<IndexRefreshService>(); services.AddSingleton<StartupService>(); services.AddSingleton<TrayIconService>(); services.AddTransient<SettingsWindow>();
   _services = services.BuildServiceProvider();
-  try { await _services.GetRequiredService<ISettingsService>().LoadAsync(); await _services.GetRequiredService<IApplicationStore>().InitializeAsync(); await _services.GetRequiredService<IndexRefreshService>().RebuildStartupApplicationsAsync(); }
+  try { await _services.GetRequiredService<ISettingsService>().LoadAsync(); await _services.GetRequiredService<IApplicationStore>().InitializeAsync(); }
   catch (Exception ex) { _services.GetRequiredService<ILogger<App>>().LogError(ex, "Startup initialization failed"); }
   var tray = _services.GetRequiredService<TrayIconService>(); var window = _services.GetRequiredService<MainWindow>(); var hotkey = _services.GetRequiredService<IGlobalHotkeyService>();
   hotkey.HotkeyPressed += (_, _) => window.ToggleLauncher();
   if (!hotkey.Register(_services.GetRequiredService<ISettingsService>().Current.Hotkey)) tray.ShowWarning("快捷键不可用", "默认快捷键已被其他程序占用；请在设置中更换。");
   window.ShowLauncher();
-  _ = _services.GetRequiredService<IndexRefreshService>().RebuildPortableApplicationsAsync();
-  _ = _services.GetRequiredService<IndexRefreshService>().RebuildFolderIndexAsync();
+  _ = _services.GetRequiredService<IndexRefreshService>().RebuildAsync();
  }
  protected override void OnExit(ExitEventArgs e){_services?.Dispose();base.OnExit(e);}
 }

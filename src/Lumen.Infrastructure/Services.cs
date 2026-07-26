@@ -40,8 +40,37 @@ public sealed class SqliteApplicationStore(ILogger<SqliteApplicationStore> logge
     public async Task UpsertApplicationsAsync(IEnumerable<ApplicationEntry> entries, CancellationToken ct = default)
     {
         await using var db = new SqliteConnection(_connectionString); await db.OpenAsync(ct); await using var tx = await db.BeginTransactionAsync(ct);
-        foreach (var e in entries) { await using var c = db.CreateCommand(); c.Transaction = (SqliteTransaction)tx; c.CommandText = "INSERT INTO applications(id,source,display_name,executable_path,arguments,working_directory,icon_cache_key,candidate_score,enabled,search_text,updated_at) VALUES($id,$s,$n,$p,$a,$w,$i,$c,$en,$search,$u) ON CONFLICT(id) DO UPDATE SET display_name=$n, executable_path=$p, arguments=$a, working_directory=$w, icon_cache_key=$i, candidate_score=$c, enabled=$en, search_text=CASE WHEN length($search)>0 THEN $search ELSE search_text END, updated_at=$u"; c.Parameters.AddWithValue("$id", e.Id); c.Parameters.AddWithValue("$s", e.Source); c.Parameters.AddWithValue("$n", e.DisplayName); c.Parameters.AddWithValue("$p", e.ExecutablePath); c.Parameters.AddWithValue("$a", (object?)e.Arguments ?? DBNull.Value); c.Parameters.AddWithValue("$w", e.WorkingDirectory); c.Parameters.AddWithValue("$i", (object?)e.IconKey ?? DBNull.Value); c.Parameters.AddWithValue("$c", e.CandidateScore); c.Parameters.AddWithValue("$en", e.Enabled ? 1 : 0); c.Parameters.AddWithValue("$search", e.SearchText); c.Parameters.AddWithValue("$u", DateTimeOffset.UtcNow.ToString("O")); await c.ExecuteNonQueryAsync(ct); }
+        await UpsertApplicationsAsync(db, (SqliteTransaction)tx, entries, ct);
         await tx.CommitAsync(ct);
+    }
+    public async Task ReplaceApplicationsAsync(IEnumerable<ApplicationEntry> entries, IEnumerable<string> sources, CancellationToken ct = default)
+    {
+        var sourceList = sources.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (sourceList.Length == 0) return;
+
+        await using var db = new SqliteConnection(_connectionString); await db.OpenAsync(ct); await using var tx = await db.BeginTransactionAsync(ct);
+        var parameterNames = sourceList.Select((_, index) => "$source" + index).ToArray();
+        var sourceClause = string.Join(",", parameterNames);
+        await using (var clearUsage = db.CreateCommand())
+        {
+            clearUsage.Transaction = (SqliteTransaction)tx;
+            clearUsage.CommandText = $"DELETE FROM usage_history WHERE result_id IN (SELECT id FROM applications WHERE source IN ({sourceClause}))";
+            for (var index = 0; index < sourceList.Length; index++) clearUsage.Parameters.AddWithValue(parameterNames[index], sourceList[index]);
+            await clearUsage.ExecuteNonQueryAsync(ct);
+        }
+        await using (var clearApplications = db.CreateCommand())
+        {
+            clearApplications.Transaction = (SqliteTransaction)tx;
+            clearApplications.CommandText = $"DELETE FROM applications WHERE source IN ({sourceClause})";
+            for (var index = 0; index < sourceList.Length; index++) clearApplications.Parameters.AddWithValue(parameterNames[index], sourceList[index]);
+            await clearApplications.ExecuteNonQueryAsync(ct);
+        }
+        await UpsertApplicationsAsync(db, (SqliteTransaction)tx, entries, ct);
+        await tx.CommitAsync(ct);
+    }
+    private static async Task UpsertApplicationsAsync(SqliteConnection db, SqliteTransaction tx, IEnumerable<ApplicationEntry> entries, CancellationToken ct)
+    {
+        foreach (var e in entries) { await using var c = db.CreateCommand(); c.Transaction = tx; c.CommandText = "INSERT INTO applications(id,source,display_name,executable_path,arguments,working_directory,icon_cache_key,candidate_score,enabled,search_text,updated_at) VALUES($id,$s,$n,$p,$a,$w,$i,$c,$en,$search,$u) ON CONFLICT(id) DO UPDATE SET source=$s, display_name=$n, executable_path=$p, arguments=$a, working_directory=$w, icon_cache_key=$i, candidate_score=$c, enabled=$en, search_text=CASE WHEN length($search)>0 THEN $search ELSE search_text END, updated_at=$u"; c.Parameters.AddWithValue("$id", e.Id); c.Parameters.AddWithValue("$s", e.Source); c.Parameters.AddWithValue("$n", e.DisplayName); c.Parameters.AddWithValue("$p", e.ExecutablePath); c.Parameters.AddWithValue("$a", (object?)e.Arguments ?? DBNull.Value); c.Parameters.AddWithValue("$w", e.WorkingDirectory); c.Parameters.AddWithValue("$i", (object?)e.IconKey ?? DBNull.Value); c.Parameters.AddWithValue("$c", e.CandidateScore); c.Parameters.AddWithValue("$en", e.Enabled ? 1 : 0); c.Parameters.AddWithValue("$search", e.SearchText); c.Parameters.AddWithValue("$u", DateTimeOffset.UtcNow.ToString("O")); await c.ExecuteNonQueryAsync(ct); }
     }
     public async Task<IReadOnlyList<ApplicationEntry>> SearchApplicationsAsync(string query, string? source, int limit, CancellationToken ct = default)
     {

@@ -7,6 +7,9 @@ namespace Lumen.App;
 
 public sealed class IndexRefreshService(IApplicationDiscoveryService discovery, IMsixApplicationDiscoveryService msixDiscovery, IPortableScanner portableScanner, IFolderScanner folderScanner, IApplicationStore store, ILogger<IndexRefreshService> logger)
 {
+    private static readonly string[] WindowsApplicationSources = ["start-menu", "app-path", "path"];
+    private static readonly string[] MsixApplicationSources = ["msix"];
+    private static readonly string[] PortableApplicationSources = ["portable"];
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     public Task RebuildAsync(CancellationToken cancellationToken = default) => RebuildAsync(includePortable: true, startPinyinIndexer: true, cancellationToken);
@@ -21,12 +24,14 @@ public sealed class IndexRefreshService(IApplicationDiscoveryService discovery, 
         {
             var discovered = await DiscoverSafely("Windows", discovery.DiscoverAsync, cancellationToken);
             var msix = await DiscoverSafely("MSIX", msixDiscovery.DiscoverAsync, cancellationToken);
-            var portable = includePortable ? await DiscoverSafely("PATH/portable", portableScanner.ScanAsync, cancellationToken) : [];
+            var portable = includePortable ? await DiscoverSafely("PATH/portable", portableScanner.ScanAsync, cancellationToken) : null;
             var folders = await DiscoverFoldersSafely(cancellationToken);
-            await store.UpsertApplicationsAsync(discovered.Concat(msix).Concat(portable), cancellationToken);
+            if (discovered is not null) await store.ReplaceApplicationsAsync(discovered, WindowsApplicationSources, cancellationToken);
+            if (msix is not null) await store.ReplaceApplicationsAsync(msix, MsixApplicationSources, cancellationToken);
+            if (portable is not null) await store.ReplaceApplicationsAsync(portable, PortableApplicationSources, cancellationToken);
             await store.ReplaceFoldersAsync(folders, cancellationToken);
             if (startPinyinIndexer) StartPinyinIndexer();
-            logger.LogInformation("Index rebuilt: {Applications} applications", discovered.Count + msix.Count + portable.Count);
+            logger.LogInformation("Index rebuilt: {Applications} applications", (discovered?.Count ?? 0) + (msix?.Count ?? 0) + (portable?.Count ?? 0));
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { logger.LogError(ex, "Index rebuild failed"); }
@@ -39,7 +44,8 @@ public sealed class IndexRefreshService(IApplicationDiscoveryService discovery, 
         try
         {
             var portable = await DiscoverSafely("PATH/portable", portableScanner.ScanAsync, cancellationToken);
-            await store.UpsertApplicationsAsync(portable, cancellationToken);
+            if (portable is null) return;
+            await store.ReplaceApplicationsAsync(portable, PortableApplicationSources, cancellationToken);
             StartPinyinIndexer();
             logger.LogInformation("Portable application index rebuilt: {Applications} applications", portable.Count);
         }
@@ -62,11 +68,11 @@ public sealed class IndexRefreshService(IApplicationDiscoveryService discovery, 
         finally { _gate.Release(); }
     }
 
-    private async Task<IReadOnlyList<ApplicationEntry>> DiscoverSafely(string source, Func<CancellationToken, Task<IReadOnlyList<ApplicationEntry>>> action, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<ApplicationEntry>?> DiscoverSafely(string source, Func<CancellationToken, Task<IReadOnlyList<ApplicationEntry>>> action, CancellationToken cancellationToken)
     {
         try { return await action(cancellationToken); }
         catch (OperationCanceledException) { throw; }
-        catch (Exception ex) { logger.LogWarning(ex, "{Source} discovery failed; continuing with other sources", source); return []; }
+        catch (Exception ex) { logger.LogWarning(ex, "{Source} discovery failed; keeping its previous index", source); return null; }
     }
     private async Task<IReadOnlyList<FolderEntry>> DiscoverFoldersSafely(CancellationToken cancellationToken)
     {

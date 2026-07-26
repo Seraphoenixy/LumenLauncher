@@ -10,6 +10,7 @@ public interface IApplicationStore
 {
     Task InitializeAsync(CancellationToken cancellationToken = default);
     Task UpsertApplicationsAsync(IEnumerable<ApplicationEntry> entries, CancellationToken cancellationToken = default);
+    Task ReplaceApplicationsAsync(IEnumerable<ApplicationEntry> entries, IEnumerable<string> sources, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ApplicationEntry>> SearchApplicationsAsync(string query, string? source, int limit, CancellationToken cancellationToken = default);
     Task ReplaceFoldersAsync(IEnumerable<FolderEntry> entries, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<FolderEntry>> SearchFoldersAsync(string query, int limit, CancellationToken cancellationToken = default);
