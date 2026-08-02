@@ -105,7 +105,7 @@ jobs:
           SHORT_HASH=$(git rev-parse --short=7 HEAD)
           for package in release-assets/Lumen-*; do
             name="$(basename "$package")"
-            (cd "$package" && zip -r "../../release-assets/${name}-${SHORT_HASH}.zip" .)
+            (cd "$package" && zip -r "../../release-assets/${name}-${{ github.ref_name }}-${SHORT_HASH}.zip" .)
           done
 
       - name: Create release and upload packages
