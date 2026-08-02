@@ -32,9 +32,10 @@ public sealed class SqliteApplicationStore(ILogger<SqliteApplicationStore> logge
         _ = ProviderInitialized;
         Directory.CreateDirectory(Path.GetDirectoryName(new SqliteConnectionStringBuilder(_connectionString).DataSource)!);
         await using var db = new SqliteConnection(_connectionString); await db.OpenAsync(ct);
-        var sql = """CREATE TABLE IF NOT EXISTS schema_versions(version INTEGER NOT NULL); INSERT INTO schema_versions SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_versions); CREATE TABLE IF NOT EXISTS applications(id TEXT PRIMARY KEY, source TEXT NOT NULL, display_name TEXT NOT NULL, executable_path TEXT NOT NULL, arguments TEXT, working_directory TEXT NOT NULL, icon_cache_key TEXT, candidate_score INTEGER NOT NULL, enabled INTEGER NOT NULL, search_text TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL); CREATE INDEX IF NOT EXISTS ix_apps_name ON applications(display_name); CREATE TABLE IF NOT EXISTS folders(id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL, root_path TEXT NOT NULL, depth INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS ix_folders_name ON folders(name); CREATE TABLE IF NOT EXISTS usage_history(result_id TEXT PRIMARY KEY, result_type INTEGER, launch_count INTEGER, last_launched_at TEXT);""";
+        var sql = """CREATE TABLE IF NOT EXISTS schema_versions(version INTEGER NOT NULL); INSERT INTO schema_versions SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_versions); CREATE TABLE IF NOT EXISTS applications(id TEXT PRIMARY KEY, source TEXT NOT NULL, display_name TEXT NOT NULL, executable_path TEXT NOT NULL, arguments TEXT, working_directory TEXT NOT NULL, icon_cache_key TEXT, candidate_score INTEGER NOT NULL, enabled INTEGER NOT NULL, search_text TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL); CREATE INDEX IF NOT EXISTS ix_apps_name ON applications(display_name); CREATE TABLE IF NOT EXISTS folders(id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL, root_path TEXT NOT NULL, depth INTEGER NOT NULL, search_text TEXT NOT NULL DEFAULT ''); CREATE INDEX IF NOT EXISTS ix_folders_name ON folders(name); CREATE TABLE IF NOT EXISTS usage_history(result_id TEXT PRIMARY KEY, result_type INTEGER, launch_count INTEGER, last_launched_at TEXT);""";
         await using var cmd = db.CreateCommand(); cmd.CommandText = sql; await cmd.ExecuteNonQueryAsync(ct);
         await EnsureApplicationSearchColumnAsync(db, ct);
+        await EnsureFolderSearchColumnAsync(db, ct);
         logger.LogInformation("Lumen database initialized");
     }
     public async Task UpsertApplicationsAsync(IEnumerable<ApplicationEntry> entries, CancellationToken ct = default)
@@ -83,8 +84,8 @@ public sealed class SqliteApplicationStore(ILogger<SqliteApplicationStore> logge
         foreach (var entry in entries)
         {
             await using var command = db.CreateCommand(); command.Transaction = (SqliteTransaction)tx;
-            command.CommandText = "INSERT INTO folders(id,name,path,root_path,depth) VALUES($id,$name,$path,$root,$depth)";
-            command.Parameters.AddWithValue("$id", entry.Id); command.Parameters.AddWithValue("$name", entry.Name); command.Parameters.AddWithValue("$path", entry.Path); command.Parameters.AddWithValue("$root", entry.RootPath); command.Parameters.AddWithValue("$depth", entry.Depth);
+            command.CommandText = "INSERT INTO folders(id,name,path,root_path,depth,search_text) VALUES($id,$name,$path,$root,$depth,$search)";
+            command.Parameters.AddWithValue("$id", entry.Id); command.Parameters.AddWithValue("$name", entry.Name); command.Parameters.AddWithValue("$path", entry.Path); command.Parameters.AddWithValue("$root", entry.RootPath); command.Parameters.AddWithValue("$depth", entry.Depth); command.Parameters.AddWithValue("$search", entry.SearchText);
             await command.ExecuteNonQueryAsync(ct);
         }
         await tx.CommitAsync(ct);
@@ -92,10 +93,10 @@ public sealed class SqliteApplicationStore(ILogger<SqliteApplicationStore> logge
     public async Task<IReadOnlyList<FolderEntry>> SearchFoldersAsync(string query, int limit, CancellationToken ct = default)
     {
         await using var db = new SqliteConnection(_connectionString); await db.OpenAsync(ct); await using var command = db.CreateCommand();
-        command.CommandText = "SELECT id,name,path,root_path,depth FROM folders WHERE name LIKE $query OR path LIKE $query ORDER BY depth,name LIMIT $limit";
+        command.CommandText = "SELECT id,name,path,root_path,depth,search_text FROM folders WHERE name LIKE $query OR path LIKE $query OR search_text LIKE $query ORDER BY depth,name LIMIT $limit";
         command.Parameters.AddWithValue("$query", "%" + query + "%"); command.Parameters.AddWithValue("$limit", limit);
         var folders = new List<FolderEntry>(); await using var reader = await command.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct)) folders.Add(new FolderEntry(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4)));
+        while (await reader.ReadAsync(ct)) folders.Add(new FolderEntry(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), reader.IsDBNull(5) ? string.Empty : reader.GetString(5)));
         return folders;
     }
     private static async Task EnsureApplicationSearchColumnAsync(SqliteConnection db, CancellationToken ct)
@@ -105,6 +106,14 @@ public sealed class SqliteApplicationStore(ILogger<SqliteApplicationStore> logge
         var exists = false;
         while (await reader.ReadAsync(ct)) exists |= string.Equals(reader.GetString(1), "search_text", StringComparison.OrdinalIgnoreCase);
         if (!exists) { await using var add = db.CreateCommand(); add.CommandText = "ALTER TABLE applications ADD COLUMN search_text TEXT NOT NULL DEFAULT ''"; await add.ExecuteNonQueryAsync(ct); }
+    }
+    private static async Task EnsureFolderSearchColumnAsync(SqliteConnection db, CancellationToken ct)
+    {
+        await using var columns = db.CreateCommand(); columns.CommandText = "PRAGMA table_info(folders)";
+        await using var reader = await columns.ExecuteReaderAsync(ct);
+        var exists = false;
+        while (await reader.ReadAsync(ct)) exists |= string.Equals(reader.GetString(1), "search_text", StringComparison.OrdinalIgnoreCase);
+        if (!exists) { await using var add = db.CreateCommand(); add.CommandText = "ALTER TABLE folders ADD COLUMN search_text TEXT NOT NULL DEFAULT ''"; await add.ExecuteNonQueryAsync(ct); }
     }
     public async Task RecordUsageAsync(SearchResult r, CancellationToken ct=default) { await using var db=new SqliteConnection(_connectionString);await db.OpenAsync(ct);await using var c=db.CreateCommand();c.CommandText="INSERT INTO usage_history(result_id,result_type,launch_count,last_launched_at) VALUES($id,$t,1,$d) ON CONFLICT(result_id) DO UPDATE SET launch_count=launch_count+1,last_launched_at=$d";c.Parameters.AddWithValue("$id",r.Id);c.Parameters.AddWithValue("$t",(int)r.Type);c.Parameters.AddWithValue("$d",DateTimeOffset.UtcNow.ToString("O"));await c.ExecuteNonQueryAsync(ct); }
     public async Task<IReadOnlyList<SearchResult>> GetRecentAsync(int limit,CancellationToken ct=default){ await using var db=new SqliteConnection(_connectionString);await db.OpenAsync(ct);await using var c=db.CreateCommand();c.CommandText="SELECT a.id,a.source,a.display_name,a.executable_path,a.arguments,a.working_directory,a.icon_cache_key,u.launch_count FROM applications a JOIN usage_history u ON a.id=u.result_id UNION ALL SELECT f.id,'folder',f.name,f.path,NULL,'','shell:Folder',u.launch_count FROM folders f JOIN usage_history u ON f.id=u.result_id ORDER BY 8 DESC LIMIT $l";c.Parameters.AddWithValue("$l",limit);var items=new List<SearchResult>();await using var r=await c.ExecuteReaderAsync(ct);while(await r.ReadAsync(ct)){var source=r.GetString(1);var type=source=="folder"?SearchResultType.Folder:source=="portable"?SearchResultType.PortableApplication:SearchResultType.Application;var action=source=="folder"?new SearchAction("folder",r.GetString(3)):new SearchAction("process",r.GetString(3),r.IsDBNull(4)?null:r.GetString(4),r.GetString(5));items.Add(new(r.GetString(0),type,r.GetString(2),r.GetString(3),r.IsDBNull(6)?null:r.GetString(6),r.GetInt32(7),action));}return items; }

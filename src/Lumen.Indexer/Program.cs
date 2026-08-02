@@ -17,6 +17,13 @@ await using (var read = connection.CreateCommand())
     await using var reader = await read.ExecuteReaderAsync();
     while (await reader.ReadAsync()) entries.Add((reader.GetString(0), reader.GetString(1)));
 }
+var folderEntries = new List<(string Id, string Name)>();
+await using (var readFolders = connection.CreateCommand())
+{
+    readFolders.CommandText = "SELECT id, name FROM folders";
+    await using var reader = await readFolders.ExecuteReaderAsync();
+    while (await reader.ReadAsync()) folderEntries.Add((reader.GetString(0), reader.GetString(1)));
+}
 await using var transaction = await connection.BeginTransactionAsync();
 foreach (var entry in entries)
 {
@@ -26,6 +33,18 @@ foreach (var entry in entries)
     await using var update = connection.CreateCommand();
     update.Transaction = (SqliteTransaction)transaction;
     update.CommandText = "UPDATE applications SET search_text=$search WHERE id=$id";
+    update.Parameters.AddWithValue("$search", aliases);
+    update.Parameters.AddWithValue("$id", entry.Id);
+    await update.ExecuteNonQueryAsync();
+}
+foreach (var entry in folderEntries)
+{
+    var full = WordsHelper.GetPinyin(entry.Name, false);
+    var initials = WordsHelper.GetFirstPinyin(entry.Name);
+    var aliases = string.Join(' ', new[] { entry.Name, full, initials }.Where(value => !string.IsNullOrWhiteSpace(value))).ToLowerInvariant();
+    await using var update = connection.CreateCommand();
+    update.Transaction = (SqliteTransaction)transaction;
+    update.CommandText = "UPDATE folders SET search_text=$search WHERE id=$id";
     update.Parameters.AddWithValue("$search", aliases);
     update.Parameters.AddWithValue("$id", entry.Id);
     await update.ExecuteNonQueryAsync();

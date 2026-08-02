@@ -166,7 +166,7 @@ public sealed class FolderSearchProvider(IApplicationStore store) : ISearchProvi
     {
         if (query.IsEmpty) return [];
         var folders = await store.SearchFoldersAsync(query.Text, query.Limit, ct);
-        return folders.Select(folder => new SearchResult(folder.Id, SearchResultType.Folder, folder.Name, folder.Path, "shell:Folder", Math.Max(TextMatcher.Score(folder.Name, query.Text), TextMatcher.Score(folder.Path, query.Text)) + 40 - folder.Depth, new SearchAction("folder", folder.Path))).ToList();
+        return folders.Select(folder => new SearchResult(folder.Id, SearchResultType.Folder, folder.Name, folder.Path, "shell:Folder", Math.Max(TextMatcher.Score(folder.Name, query.Text), Math.Max(TextMatcher.Score(folder.Path, query.Text), TextMatcher.Score(folder.SearchText, query.Text))) + 40 - folder.Depth, new SearchAction("folder", folder.Path))).ToList();
     }
 }
 public sealed class QuicklinkSearchProvider(ISettingsService settings) : ISearchProvider
