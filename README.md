@@ -66,8 +66,8 @@ Google | https://www.google.com/search?q={query} | g
 
 ```powershell
 dotnet restore Lumen.sln
-dotnet build Lumen.sln -c Release --no-restore
-dotnet test Lumen.sln -c Release --no-restore
+dotnet build Lumen.sln -c Release
+dotnet test Lumen.sln -c Release
 dotnet run --project src/Lumen.App
 ```
 
@@ -77,7 +77,7 @@ dotnet run --project src/Lumen.App
 
 ```powershell
 dotnet restore src/Lumen.App/Lumen.App.csproj -r win-x64
-dotnet publish src/Lumen.App/Lumen.App.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/win-x64
+dotnet publish src/Lumen.App/Lumen.App.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
 ```
 
 GitHub Actions 会在 `main` 分支推送和 Pull Request 时运行测试，并构建 `win-x64` 与 `win-arm64` 产物。推送形如 `v0.1.0` 的标签时，会创建草稿 GitHub Release 并上传 ZIP 安装包。

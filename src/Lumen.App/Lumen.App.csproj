@@ -7,7 +7,7 @@
   <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
  </ItemGroup>
  <Target Name="BuildIndexer" BeforeTargets="CopyIndexer">
-  <MSBuild Projects="$(MSBuildProjectDirectory)\..\Lumen.Indexer\Lumen.Indexer.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+  <MSBuild Projects="$(MSBuildProjectDirectory)\..\Lumen.Indexer\Lumen.Indexer.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" />
  </Target>
  <Target Name="CopyIndexer" AfterTargets="Build" DependsOnTargets="BuildIndexer">
   <ItemGroup><IndexerFiles Include="$(MSBuildProjectDirectory)\..\Lumen.Indexer\bin\$(Configuration)\net10.0-windows\$(RuntimeIdentifier)\Lumen.Indexer.*;$(MSBuildProjectDirectory)\..\Lumen.Indexer\bin\$(Configuration)\net10.0-windows\$(RuntimeIdentifier)\ToolGood.Words.Pinyin.dll" /></ItemGroup>
